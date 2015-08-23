@@ -8,6 +8,11 @@
 
 #include "stm32f10x.h"
 
+#include "FreeRTOS.h"
+#include "task.h"
+#include "list.h"
+#include "queue.h"
+
 // Sample pragmas to cope with warnings. Please note the related line at
 // the end of this function, used to pop the compiler diagnostics status.
 #pragma GCC diagnostic push
@@ -421,6 +426,33 @@ void led_init( void )
   GPIO_ResetBits(BLINK_GPIOx(BLINK_PORT_NUMBER), BLINK_PIN_MASK(BLINK_PIN_NUMBER));
 }
 
+void test_thread( void* param )
+{
+  portTickType xLastWakeTime;
+  int flag = 0;
+
+  xLastWakeTime = xTaskGetTickCount();
+
+  led_init();
+
+  while(1)
+  {
+	if( flag )
+	{
+		flag = 0;
+		GPIO_ResetBits( BLINK_GPIOx(BLINK_PORT_NUMBER), BLINK_PIN_MASK(BLINK_PIN_NUMBER) );
+	}
+	else
+	{
+		flag = 1;
+		GPIO_SetBits( BLINK_GPIOx(BLINK_PORT_NUMBER), BLINK_PIN_MASK(BLINK_PIN_NUMBER) );
+	}
+
+	// thread will be awaken each half of second, so we have 1 Hz meander
+	vTaskDelayUntil( &xLastWakeTime, ( 500 / portTICK_RATE_MS ) );
+  }
+}
+
 //
 //===================================================================================
 int main(int argc, char* argv[])
@@ -428,8 +460,14 @@ int main(int argc, char* argv[])
   uint8_t reg = 0;
   uint8_t status_reg = 0;
 
-  //led_init();
-  //GPIO_SetBits( BLINK_GPIOx(BLINK_PORT_NUMBER), BLINK_PIN_MASK(BLINK_PIN_NUMBER) );
+  // assign all priority bits to be preempt priority bits, as FreeRTOS requires
+  // NOTE: stm32 microcontrollers have only 4 bits for priority, so only 16 interrupt levels
+  NVIC_PriorityGroupConfig( NVIC_PriorityGroup_4 );
+
+  xTaskCreate( test_thread, "PBTask", 256, NULL, 1, NULL );
+
+  vTaskStartScheduler();
+
 
   n_rf24l01_init();
 
