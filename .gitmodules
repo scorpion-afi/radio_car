@@ -1,0 +1,3 @@
+[submodule "src/n_rf24l01"]
+	path = src/n_rf24l01
+	url = git@github.com:scorpion-afi/n_rf24l01_library.git
