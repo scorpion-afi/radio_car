@@ -1,8 +1,5 @@
-.cproject
-.project
 .settings
 Debug
-ldscripts
 *.o
 *.a
 *.elf
