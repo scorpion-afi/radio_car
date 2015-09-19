@@ -14,18 +14,18 @@
 void led_init( void )
 {
   // enable GPIO peripheral clock
-  RCC_APB2PeriphClockCmd( BLINK_RCC_MASKx(BLINK_PORT_NUMBER), ENABLE );
+  RCC_APB2PeriphClockCmd( BLINK_RCC_MASKx( BLINK_PORT_NUMBER ), ENABLE );
 
   GPIO_InitTypeDef gpio_init;
 
   // configure pin in output push/pull mode
-  gpio_init.GPIO_Pin = BLINK_PIN_MASK(BLINK_PIN_NUMBER);
+  gpio_init.GPIO_Pin = BLINK_PIN_MASK( BLINK_PIN_NUMBER );
   gpio_init.GPIO_Speed = GPIO_Speed_50MHz;
   gpio_init.GPIO_Mode = GPIO_Mode_Out_PP;
-  GPIO_Init( BLINK_GPIOx(BLINK_PORT_NUMBER), &gpio_init );
+  GPIO_Init( BLINK_GPIOx( BLINK_PORT_NUMBER ), &gpio_init );
 
   // start with led turned off
-  GPIO_ResetBits( BLINK_GPIOx(BLINK_PORT_NUMBER), BLINK_PIN_MASK(BLINK_PIN_NUMBER) );
+  GPIO_ResetBits( BLINK_GPIOx( BLINK_PORT_NUMBER ), BLINK_PIN_MASK( BLINK_PIN_NUMBER ) );
 }
 
 // turn on led (about period/2 ms) and then turn off (about period/2 ms)
@@ -33,17 +33,17 @@ void led_init( void )
 //===================================================================================
 void led_blink( uint32_t period )
 {
-	portTickType last_wake_time;
+  portTickType last_wake_time;
 
-	last_wake_time = xTaskGetTickCount();
+  last_wake_time = xTaskGetTickCount();
 
-	GPIO_SetBits( BLINK_GPIOx(BLINK_PORT_NUMBER), BLINK_PIN_MASK(BLINK_PIN_NUMBER) );
+  GPIO_SetBits( BLINK_GPIOx( BLINK_PORT_NUMBER ), BLINK_PIN_MASK( BLINK_PIN_NUMBER ) );
 
-	// thread will be slept about period/2 ms
-	vTaskDelayUntil( &last_wake_time, ( (period/2) / portTICK_RATE_MS ) );
+  // thread will be slept about period/2 ms
+  vTaskDelayUntil( &last_wake_time, ( ( period / 2 ) / portTICK_RATE_MS ) );
 
-	GPIO_ResetBits( BLINK_GPIOx(BLINK_PORT_NUMBER), BLINK_PIN_MASK(BLINK_PIN_NUMBER) );
+  GPIO_ResetBits( BLINK_GPIOx( BLINK_PORT_NUMBER ), BLINK_PIN_MASK( BLINK_PIN_NUMBER ) );
 
-	// thread will be slept about period/2 ms
-	vTaskDelayUntil( &last_wake_time, ( (period/2) / portTICK_RATE_MS ) );
+  // thread will be slept about period/2 ms
+  vTaskDelayUntil( &last_wake_time, ( ( period / 2 ) / portTICK_RATE_MS ) );
 }

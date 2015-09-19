@@ -13,7 +13,6 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
-
 // this function turn on blue led (PC8) and invoke HardFault exception to prevent wrong work flow.
 // you can use this function to finish work if something went wrong
 // Note: this function isn't FreeRTOS dependent, so you can use it everywhere
@@ -33,17 +32,17 @@ void hardware_fail( void )
 //===================================================================================
 int create_os_objects( void )
 {
-	int ret;
+  int ret;
 
-	ret = led_service_create();
-	if( !ret )
-		return 0;
+  ret = led_service_create();
+  if( !ret )
+    return 0;
 
-	ret = transceiver_service_create();
-	if( !ret )
-		return 0;
+  ret = transceiver_service_create();
+  if( !ret )
+    return 0;
 
-	return 1;
+  return 1;
 }
 
 // prepare stuffs that aren't tied with FreeRTOS
@@ -81,7 +80,7 @@ int main( int argc, char* argv[] )
 
   ret = create_os_objects();
   if( !ret )
-	  hardware_fail();
+    hardware_fail();
 
   vTaskStartScheduler();
 

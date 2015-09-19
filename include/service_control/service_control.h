@@ -6,26 +6,25 @@
 // this structure defines thread configuration parameters, thread is main part of service
 typedef struct thread_t
 {
-	TaskFunction_t thread_name; // pointer to thread-handler
+  TaskFunction_t thread_name; // pointer to thread-handler
 
-	// name of thread, which will be used for debugging and as service,
-	// based on this thread, name
-	const char* name;
-	uint16_t stack_depth;		// depth of thread's stack, in stack elements, not in bytes
-	void* params;				// pointer to parameters, which will be passed to thread-handler
-	UBaseType_t priority;		// FreeRTOS thread priority
-	TaskHandle_t* hndl;			// pointer to handle of created thread (used for destroy thread only), output parameter
+  // name of thread, which will be used for debugging and as service,
+  // based on this thread, name
+  const char* name;
+  uint16_t stack_depth;		// depth of thread's stack, in stack elements, not in bytes
+  void* params;				// pointer to parameters, which will be passed to thread-handler
+  UBaseType_t priority;		// FreeRTOS thread priority
+  TaskHandle_t* hndl;	// pointer to handle of created thread (used for destroy thread only), output parameter
 } thread_t;
 
 // this structure defines queue configuration parameters, each service has itself queue to handle requests
 typedef struct queue_t
 {
-	// size of queue's item isn't specified due to all service's queues store just pointers to messages,
-	// so item size is 4 bytes, for 32 bit architectures
-	UBaseType_t length;			// length of queue
-	QueueHandle_t* queue_id;	// pointer to handle of created queue, output parameter
+  // size of queue's item isn't specified due to all service's queues store just pointers to messages,
+  // so item size is 4 bytes, for 32 bit architectures
+  UBaseType_t length;			// length of queue
+  QueueHandle_t* queue_id;	// pointer to handle of created queue, output parameter
 } queue_t;
-
 
 // if you want your service can be used by another services, add service name to this services_names array (look to service_control.c)
 // and pass this name, via thread_info.name, to service_create function, see, for example, led_service creation

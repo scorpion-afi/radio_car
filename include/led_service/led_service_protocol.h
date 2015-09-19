@@ -22,12 +22,12 @@
 // this structure defines message structure to be sent to this service
 typedef struct led_service_mesg_t
 {
-	uint32_t type;		// type of message, indicates how to interpret parameters
-	uint32_t ack_on;	// whether acknowledge will be sent or not (0 - off, 1 - on)
-	uint32_t service_id_to_ack;	// id of service which acknowledge will be sent
-	uint32_t mesg_id;	// id associated with this message, used for acknowledge
-	uint32_t duration;
-	uint32_t period;
+  uint32_t type;		// type of message, indicates how to interpret parameters
+  uint32_t ack_on;	// whether acknowledge will be sent or not (0 - off, 1 - on)
+  uint32_t service_id_to_ack;	// id of service which acknowledge will be sent
+  uint32_t mesg_id;	// id associated with this message, used for acknowledge
+  uint32_t duration;
+  uint32_t period;
 
 } led_service_mesg_t;
 

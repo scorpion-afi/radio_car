@@ -24,7 +24,7 @@ static void transceiver_thread( void* params )
 
   led_service_id = get_service_id( "led_service" );
   if( !led_service_id )
-	  hardware_fail();
+    hardware_fail();
 
   // prepare message to send to led_service
   led_service_mesg.type = 1;
@@ -37,31 +37,31 @@ static void transceiver_thread( void* params )
 
   while( 1 )
   {
-	send_mesg( led_service_id, &led_service_mesg, portMAX_DELAY );
-	led_service_mesg.mesg_id++;
+    send_mesg( led_service_id, &led_service_mesg, portMAX_DELAY );
+    led_service_mesg.mesg_id++;
 
-	res = xQueueReceive( service_queue, (void *)&temp, portMAX_DELAY );
-	if( res != pdTRUE || !temp )
-		hardware_fail();
+    res = xQueueReceive( service_queue, ( void * )&temp, portMAX_DELAY );
+    if( res != pdTRUE || !temp )
+      hardware_fail();
 
-	switch( get_msg_type(temp) )
-	{
-		// acknowledge handling
-		case 0:
-			;	// currently there are nothing to do
-				// we can make next cast (ack_mesg_t*)temp and we will be able to use
-				// next fields: service_id and mesg_id
-		break;
+    switch( get_msg_type( temp ) )
+    {
+      // acknowledge handling
+      case 0 :
+        ;	// currently there are nothing to do
+          // we can make next cast (ack_mesg_t*)temp and we will be able to use
+          // next fields: service_id and mesg_id
+      break;
 
-		default:
-			hardware_fail();	// what message we have received ?
-		break;
-	}
+      default :
+        hardware_fail();	// what message we have received ?
+      break;
+    }
 
-	// thread will be awaken each five second (5000 ms) and send message to led_service to blink led
-	// xTimeIncrement (second parameter) - is interval in slices
-	// portTICK_RATE_MS - slice time in ms
-	vTaskDelayUntil( &last_wake_time, 5000 / portTICK_RATE_MS );
+    // thread will be awaken each five second (5000 ms) and send message to led_service to blink led
+    // xTimeIncrement (second parameter) - is interval in slices
+    // portTICK_RATE_MS - slice time in ms
+    vTaskDelayUntil( &last_wake_time, 5000 / portTICK_RATE_MS );
   }
 }
 
@@ -70,23 +70,23 @@ static void transceiver_thread( void* params )
 //==============================================================================
 int transceiver_service_create( void )
 {
-	thread_t thread =
-	{
-		.thread_name = transceiver_thread,
-		.name = services_names[1],
-		.stack_depth = 128,
-		.params = NULL,
-		.priority = 2,
-		.hndl = NULL	// we aren't interesting in this handle
-	};
+  thread_t thread =
+  {
+      .thread_name = transceiver_thread,
+      .name = services_names[1],
+      .stack_depth = 128,
+      .params = NULL,
+      .priority = 2,
+      .hndl = NULL	// we aren't interesting in this handle
+      };
 
-	queue_t queue =
-	{
-		.length = 5,
-		.queue_id = &service_queue	// we will use this queue's id for reading events from queue
-	};
+  queue_t queue =
+  {
+      .length = 5,
+      .queue_id = &service_queue	// we will use this queue's id for reading events from queue
+      };
 
-	service_id = service_create( &thread, &queue );
+  service_id = service_create( &thread, &queue );
 
-	return service_id;
+  return service_id;
 }
