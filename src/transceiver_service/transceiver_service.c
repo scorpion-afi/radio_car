@@ -1,6 +1,7 @@
 // transceiver control service
 
 #include "transceiver_service.h"
+#include "transceiver_private.h"
 #include "led_service_protocol.h"
 
 #include "service_control.h"
@@ -15,12 +16,18 @@ static uint32_t service_id;
 //==============================================================================
 static void transceiver_thread( void* params )
 {
+  int ret;
   BaseType_t res;
   uint32_t led_service_id;
   portTickType last_wake_time;
   led_service_mesg_t led_service_mesg;
 
   void* temp; // currently we haven't protocol for this service
+
+  // initialize n_rf24l01 library and transceiver
+  ret = init_n_rf24l01();
+  if( ret )
+    hardware_fail();
 
   led_service_id = get_service_id( "led_service" );
   if( !led_service_id )
