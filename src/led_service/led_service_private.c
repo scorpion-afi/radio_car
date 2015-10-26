@@ -16,7 +16,7 @@ void led_init( void )
   // enable GPIO peripheral clock
   RCC_APB2PeriphClockCmd( BLINK_RCC_MASKx( BLINK_PORT_NUMBER ), ENABLE );
 
-  GPIO_InitTypeDef gpio_init;
+  GPIO_InitTypeDef gpio_init = { 0, };
 
   // configure pin in output push/pull mode
   gpio_init.GPIO_Pin = BLINK_PIN_MASK( BLINK_PIN_NUMBER );

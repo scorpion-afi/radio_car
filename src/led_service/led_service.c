@@ -16,7 +16,7 @@ static uint32_t service_id;
 //==============================================================================
 static void led_thread( void* params )
 {
-  led_service_mesg_t* led_service_mesg;
+  common_msg_t current_service_msg;
   portTickType cur_tick_num, start_tick_num;
   BaseType_t res;
   int ret;
@@ -25,11 +25,11 @@ static void led_thread( void* params )
 
   while( 1 )
   {
-    res = xQueueReceive( service_queue, ( void* )&led_service_mesg, portMAX_DELAY );
-    if( res != pdTRUE || !led_service_mesg )
+    res = xQueueReceive( service_queue, ( void* )&current_service_msg, portMAX_DELAY );
+    if( res != pdTRUE )
       hardware_fail();
 
-    switch( get_msg_type( led_service_mesg ) )
+    switch( current_service_msg.type )
     {
       case 0 :
         ; // acknowledge handling
@@ -41,9 +41,9 @@ static void led_thread( void* params )
         cur_tick_num = start_tick_num;
 
         // of course it's not accurate time measurement, but...
-        while( cur_tick_num < ( start_tick_num + led_service_mesg->duration / portTICK_RATE_MS ) )
+        while( cur_tick_num < ( start_tick_num + current_service_msg.short_data[0] / portTICK_RATE_MS ) )
         {
-          led_blink( led_service_mesg->period );
+          led_blink( current_service_msg.short_data[1] );
           cur_tick_num = xTaskGetTickCount();
         }
       }
@@ -54,9 +54,9 @@ static void led_thread( void* params )
       break;
     }
 
-    if( led_service_mesg->ack_on )
+    if( must_send_reply( &current_service_msg ) )
     {
-      ret = send_ack_mesg( service_id, led_service_mesg->service_id_to_ack, led_service_mesg->mesg_id );
+      ret = send_reply( service_id, &current_service_msg, portMAX_DELAY );
       if( !ret )
         hardware_fail();	// maybe it's very strictly ?
     }
