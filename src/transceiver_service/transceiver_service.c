@@ -6,62 +6,44 @@
 #include "service_control.h"
 
 // queue that stores requests to this service
-static QueueHandle_t cur_service_queue;
+static QueueHandle_t cur_serv_queue;
 
 // id of this service
-static uint32_t cur_service_id;
+static uint32_t cur_serv_id;
 
 // transceiver service thread-handler
 //==============================================================================
 static void transceiver_thread( void* params )
 {
-  BaseType_t res;
-  uint32_t led_service_id;
-  portTickType last_wake_time;
-  common_msg_t led_service_mesg = { 0, };
-  common_msg_t current_service_msg = { 0, };
+  common_msg_t led_serv_mesg = { 0, };
+  uint32_t led_serv_id;
+
   common_msg_t reply = { 0, };
 
-  led_service_id = get_service_id( "led_service" );
-  if( !led_service_id )
+  portTickType last_wake_time;
+  BaseType_t res;
+
+  led_serv_id = get_service_id( "led_service" );
+  if( !led_serv_id )
     hardware_fail();
 
   // prepare message to send to led_service
-  led_service_mesg.type = 1;
-  led_service_mesg.short_data[0] = 1000;
-  led_service_mesg.short_data[1] = 250;
+  led_serv_mesg.type = 1;
+  led_serv_mesg.short_data[0] = 1000;
+  led_serv_mesg.short_data[1] = 250;
 
   last_wake_time = xTaskGetTickCount();
 
   while( 1 )
   {
-    send_mesg( led_service_id, &led_service_mesg, portMAX_DELAY, cur_service_id );
-    wait_reply( cur_service_id, &reply, portMAX_DELAY );
-
-    /*
-    res = xQueueReceive( cur_service_queue, ( void * )&current_service_msg, portMAX_DELAY );
-    if( res != pdTRUE )
-      hardware_fail();
-
-    switch( current_service_msg.type )
-    {
-      // acknowledge handling
-      case 0 :
-        ;	// currently there are nothing to do
-          // we can make next cast (ack_mesg_t*)temp and we will be able to use
-          // next fields: service_id and mesg_id
-      break;
-
-      default :
-        hardware_fail();	// what message we have received ?
-      break;
-    }
-     */
+    // we explicitly turn on reply ability - we specify service which to send reply as last parameter
+    send_mesg( led_serv_id, &led_serv_mesg, portMAX_DELAY, cur_serv_id );
+    wait_reply( cur_serv_id, &reply, portMAX_DELAY );
 
     // thread will be awaken each five second (5000 ms) and send message to led_service to blink led
     // xTimeIncrement (second parameter) - is interval in slices
     // portTICK_RATE_MS - slice time in ms
-    vTaskDelayUntil( &last_wake_time, 2000 / portTICK_RATE_MS );
+    vTaskDelayUntil( &last_wake_time, 5000 / portTICK_RATE_MS );
   }
 }
 
@@ -83,10 +65,10 @@ int transceiver_service_create( void )
   queue_t queue =
   {
       .length = 5,
-      .queue_id = &cur_service_queue	// we will use this queue's id for reading events from queue
+      .queue_id = &cur_serv_queue	// we will use this queue's id for reading events from queue
       };
 
-  cur_service_id = service_create( &thread, &queue );
+  cur_serv_id = service_create( &thread, &queue );
 
-  return cur_service_id;
+  return cur_serv_id;
 }

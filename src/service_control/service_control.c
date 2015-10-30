@@ -135,11 +135,11 @@ uint32_t get_service_id( const char* service_name )
 // service_id - id of service message must be sent which
 // mesg - pointer to common_msg_t structure (common message), pointer will be dereferenced and in queue will
 //        be copied data @mesg points to. structure must be zero-filled after creation !!!
-// ticks_to_wait - amount of ticks, service will be sleep during which, 0 - means function return control immediately
+// ticks_to_wait - amount of ticks, service will be sleep during which, 0 - means function returns control immediately
 // service_to_reply - id of service to send reply, specify 0 if you aren't interesting in sending of a reply
 // return 0 if failed
 
-// Note: message will be queued by copy, not by reference, so you may destroy data 'mesg' points to.
+// Note: message will be queued by copy, not by reference, so you may destroy data @mesg points to.
 //============================================================================================================
 int send_mesg( uint32_t service_id, common_msg_t* mesg, TickType_t ticks_to_wait, uint32_t service_to_reply )
 {
@@ -170,7 +170,7 @@ int send_mesg( uint32_t service_id, common_msg_t* mesg, TickType_t ticks_to_wait
 
 // send reply message
 // service_from_id - id of service which sends reply
-// mesg   - pointer to structure defined reply, must be same structure that was dequeued from service queue
+// mesg   - pointer to structure defined reply, must be SAME structure that was dequeued from service queue
 // ticks_to_wait - amount of ticks, service will be sleep during which, 0 - means function return control immediately
 // return 0 if failed
 //============================================================================================================
@@ -195,11 +195,11 @@ int send_reply( uint32_t service_from_id, const common_msg_t* mesg, TickType_t t
 }
 
 // wait reply up to @ticks_to_wait ticks
-// this function may be used to allow wait for low priority service request processing
+// this function may be used to allow waiting for low priority service request processing
 // from high priority service
 
-// service_id - id of current service from which you are called this function
-// mesg - pointer to structure which will be filled by reply message
+// service_id - id of current service from which you call this function
+// mesg - pointer to structure which will be filled by reply message, you may set NULL, if only you want is wait
 // ticks_to_wait - amount of ticks, service will be sleep during which, 0 - means function return control immediately
 // return 0 if failed
 //============================================================================================================
@@ -207,9 +207,13 @@ int wait_reply( uint32_t service_id, common_msg_t* mesg, TickType_t ticks_to_wai
 {
   BaseType_t res;
   service_element_t* service = NULL;
+  common_msg_t temp = { 0, };
 
-  if( !service_id || !mesg )
+  if( !service_id )
     return 0;
+
+  if( !mesg )
+    mesg = &temp;
 
   // list over list of services for look up service
   list_for_each_entry( service, &services_list, list_item )
@@ -228,7 +232,7 @@ int wait_reply( uint32_t service_id, common_msg_t* mesg, TickType_t ticks_to_wai
 // this function may be used for determine whether to send reply or not
 // return 1 if reply must be send, 0 - otherwise
 //============================================================================================================
-int must_send_reply( const common_msg_t* mesg )
+inline int must_send_reply( const common_msg_t* mesg )
 {
   if( !mesg )
     return 0;
