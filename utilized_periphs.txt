@@ -5,8 +5,8 @@ GPIOs:
   GPIOA:
     2..7 - transeiver (2,3 - gpios, [4-7] - spi1)
   GPIOC:  
-    8 - blue led
-    9 - green led
+    8 - "hardware panic" (blue led)
+    9 - led service (green led)
     
 SPIs:
   SPI1 - transceiver

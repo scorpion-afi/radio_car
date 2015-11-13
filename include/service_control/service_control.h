@@ -48,6 +48,7 @@ extern uint32_t get_service_id( const char* service_name );
 // data - pointer to data to be copied (enqueue) into queue
 // ticks_to_wait - amount of ticks, service will be sleep during which, 0 - means function returns control immediately
 // return 0 if failed
+// NOTE: function will copy amount of bytes specified during service creation, from memory @data points to
 //============================================================================================================
 extern int send_mesg( uint32_t serv_id_to, const void* data, TickType_t ticks_to_wait );
 

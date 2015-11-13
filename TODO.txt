@@ -1,0 +1,1 @@
+1. led service implements itself logic via asleping the thread, must be reimplemented via hw timer/interrupt.
