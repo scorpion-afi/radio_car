@@ -21,7 +21,7 @@ typedef struct thread_t
 typedef struct queue_t
 {
   size_t elm_size;          // size of one element in queue
-  UBaseType_t length;			// length of queue
+  UBaseType_t length;		// length of queue
   QueueHandle_t* queue_id;	// pointer to handle of created queue, output parameter
 } queue_t;
 
@@ -32,16 +32,11 @@ extern const char* services_names[];
 
 // create service: thread with associated queue
 // thread_info - pointers to struct described thread creation info (look to service_control.h)
-// queue_info - pointers to struct described queue creation info (look to service_control.h)
+// queue_info - pointers to struct described queue creation info (look to service_control.h),
+//              specify NULL if you don't want to have queue within service
 // return service's id, 0 if failed
 //============================================================================================================
 extern uint32_t service_create( thread_t* thread_info, queue_t* queue_info );
-
-// give service's id from service's name
-// service_name - name of service (look to services_names array to know existed services names)
-// return service's id, 0 if failed
-//============================================================================================================
-extern uint32_t get_service_id( const char* service_name );
 
 // send a message to queue associated with service identified by @serv_id_to
 // serv_id_to - id of service message must be sent which

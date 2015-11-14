@@ -54,17 +54,18 @@ static uint32_t _add_service_to_list( const char* service_name, QueueHandle_t qu
 
 // create service: thread with associated queue
 // thread_info - pointers to structure described thread creation info (look to service_control.h)
-// queue_info - pointers to structure described queue creation info (look to service_control.h)
+// queue_info - pointers to structure described queue creation info (look to service_control.h),
+//              specify NULL if you don't want to have queue within service
 // return service's id, 0 if failed
 //============================================================================================================
 uint32_t service_create( thread_t* thread_info, queue_t* queue_info )
 {
   uint32_t res;
   BaseType_t ret;
-  QueueHandle_t queue_id;
+  QueueHandle_t queue_id = 0;
   TaskHandle_t hndl;
 
-  if( !thread_info || !queue_info || !queue_info->elm_size )
+  if( !thread_info )
     return 0;
 
   ret = xTaskCreate( thread_info->thread_name, thread_info->name, thread_info->stack_depth, thread_info->params,
@@ -75,42 +76,26 @@ uint32_t service_create( thread_t* thread_info, queue_t* queue_info )
   if( thread_info->hndl )
     *thread_info->hndl = hndl;
 
-  queue_id = xQueueCreate( queue_info->length, queue_info->elm_size );
+  if( queue_info && queue_info->length && queue_info->elm_size )
+  {
+    queue_id = xQueueCreate( queue_info->length, queue_info->elm_size );
+    if( !queue_id )
+      goto fail_1;
+
+    if( queue_info->queue_id )
+      *queue_info->queue_id = queue_id;
+  }
+
+  res = _add_service_to_list( thread_info->name, queue_id );
+  if( res )
+    return res;
+
   if( !queue_id )
     goto fail_1;
 
-  if( queue_info->queue_id )
-    *queue_info->queue_id = queue_id;
+  vQueueDelete( queue_id );
 
-  res = _add_service_to_list( thread_info->name, queue_id );
-  if( !res )
-    goto fail_2;
-
-  return res;
-
-  fail_2: vQueueDelete( queue_id );
   fail_1: vTaskDelete( hndl );
-  return 0;
-}
-
-// give service's id from service's name
-// service_name - name of service (look to services_names array to know existed services names)
-// return service's id, 0 if failed
-//============================================================================================================
-uint32_t get_service_id( const char* service_name )
-{
-  service_element_t* service = NULL;
-
-  if( !service_name )
-    return 0;
-
-  // list over list of services for look up service
-  list_for_each_entry( service, &services_list, list_item )
-  {
-    if( !strcmp( service_name, service->service_name ) )
-      return service->service_id;
-  }
-
   return 0;
 }
 
@@ -134,6 +119,9 @@ int send_mesg( uint32_t serv_id_to, const void* data, TickType_t ticks_to_wait )
   {
     if( service->service_id == serv_id_to )
     {
+      if( !service->queue_id )
+        return 0;
+
       res = xQueueSendToBack( service->queue_id, data, ticks_to_wait );
       if( res != pdTRUE )
         return 0;

@@ -10,6 +10,7 @@
 #include "task.h"
 #include "list.h"
 #include "queue.h"
+#include "semphr.h"
 
 #define malloc pvPortMalloc
 #define free   vPortFree
