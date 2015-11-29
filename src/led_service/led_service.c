@@ -8,6 +8,8 @@
 // id of this (current) service
 static uint32_t cur_serv_id;
 
+// queue that stores requests to this service
+static QueueHandle_t cur_serv_queue;
 
 typedef struct led_request_t
 {
@@ -32,13 +34,32 @@ void led_flash( unsigned int duration, unsigned int period, TickType_t ticks_to_
   send_mesg( cur_serv_id, &led_request, ticks_to_wait );
 }
 
+// send request to led service to flash a led (to call from irq handler)
+//   duration - duration of all impulses, in ms
+//   period   - period of one impulse, in ms
+// NOTE: this function makes forced context switching
+//==============================================================================
+void led_flash_irq( unsigned int duration, unsigned int period )
+{
+  portBASE_TYPE force_context_switch = pdFALSE; // must be explicitly reset
+  led_request_t led_request = { 0, };
+
+  if( !cur_serv_id )
+    return;
+
+  led_request.duration = duration;
+  led_request.period = period;
+
+  xQueueSendFromISR( cur_serv_queue, &led_request, &force_context_switch );
+
+  // after irq processing will be finished switch to woken high priority task immediately
+  portEND_SWITCHING_ISR( force_context_switch );
+}
+
 
 //========================================================================================================
 //========================================================================================================
 
-
-// queue that stores requests to this service
-static QueueHandle_t cur_serv_queue;
 
 // led service thread-handler
 //==============================================================================

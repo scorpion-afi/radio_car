@@ -19,4 +19,10 @@ int led_service_create( void );
 //   period   - period of one impulse, in ms
 void led_flash( unsigned int duration, unsigned int period, TickType_t ticks_to_wait );
 
+// send request to led service to flash a led (to call from irq handler)
+//   duration - duration of all impulses, in ms
+//   period   - period of one impulse, in ms
+// NOTE: this function makes forced context switching
+void led_flash_irq( unsigned int duration, unsigned int period );
+
 #endif // LED_SERVICE_H

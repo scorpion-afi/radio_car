@@ -25,6 +25,8 @@ void EXTI0_IRQHandler(void)
 
     xSemaphoreGiveFromISR( exti_0_semaphor, &force_context_switch );
 
+    led_flash_irq( 200, 100 );
+
     // after irq processing will be finished switch to woken high priority task immediately
     if( force_context_switch )
       portEND_SWITCHING_ISR( force_context_switch );
@@ -102,8 +104,6 @@ static void transceiver_thread( void* params )
     }
 
     xSemaphoreTake( exti_0_semaphor, portMAX_DELAY );
-
-    led_flash( 600, 200, portMAX_DELAY );
   }
 }
 
