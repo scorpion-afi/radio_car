@@ -2,73 +2,116 @@
 
 #include "transceiver_service.h"
 #include "transceiver_private.h"
-#include "led_service_protocol.h"
+
+#include "led_service.h"
 
 #include "service_control.h"
 
-// queue that stores requests to this service
-static QueueHandle_t service_queue;
-
 // id of this service
-static uint32_t service_id;
+static uint32_t cur_serv_id;
+
+// semaphor to implement delayed interrupt service (exti0: user button)
+static xSemaphoreHandle exti_0_semaphor;
+
+// exti line 0 irq handler
+//==============================================================================
+void EXTI0_IRQHandler(void)
+{
+  portBASE_TYPE force_context_switch = pdFALSE; // must be explicitly reset
+  static int cnt;
+
+  // antibounce mechanism - it's only for test purpose !!!
+  if( ++cnt > 1 )
+  {
+    cnt = 0;
+
+    xSemaphoreGiveFromISR( exti_0_semaphor, &force_context_switch );
+
+    led_flash_irq( 200, 100 );
+
+    // after irq processing will be finished switch to woken high priority task immediately
+    if( force_context_switch )
+      portEND_SWITCHING_ISR( force_context_switch );
+  }
+
+  // clear the EXTI line 0 pending bit
+  EXTI_ClearITPendingBit( EXTI_Line0 );
+}
+
+// init exti line 0 (PA0 - user button)
+//==============================================================================
+static void init( void )
+{
+  GPIO_InitTypeDef gpio_init;
+  EXTI_InitTypeDef exti_init;
+  NVIC_InitTypeDef nvic_init;
+
+  // create semaphore to implement delayed interrupt service
+  vSemaphoreCreateBinary( exti_0_semaphor );
+  if( !exti_0_semaphor )
+    hardware_fail();
+
+  // reset the EXTI peripheral registers to their default reset values
+  EXTI_DeInit();
+
+  // fills each gpio_init fields with its default value
+  GPIO_StructInit( &gpio_init );
+
+  // fills each exti_init fields with its reset value
+  EXTI_StructInit( &exti_init );
+
+  // enable GPIOA and AFIO clock
+  RCC_APB2PeriphClockCmd( RCC_APB2Periph_GPIOA | RCC_APB2Periph_AFIO, ENABLE );
+
+  // configure PA0 as input floating
+  gpio_init.GPIO_Pin = GPIO_Pin_0;
+  gpio_init.GPIO_Mode = GPIO_Mode_IN_FLOATING;
+  GPIO_Init( GPIOA, &gpio_init );
+
+  // connect PA0 to EXTI line 0
+  GPIO_EXTILineConfig( GPIO_PortSourceGPIOA, GPIO_PinSource0 );
+
+  // configure EXTI line 0
+  exti_init.EXTI_Line = EXTI_Line0;
+  exti_init.EXTI_Mode = EXTI_Mode_Interrupt;
+  exti_init.EXTI_Trigger = EXTI_Trigger_Rising;
+  exti_init.EXTI_LineCmd = ENABLE;
+  EXTI_Init( &exti_init );
+
+  // enable EXTI line 0 interrupt
+  // preemption priority: 12 or 0xcf > configMAX_SYSCALL_INTERRUPT_PRIORITY,
+  // so we can use FreeRTOS API inside interrupt handler
+  // sub priority: we don't use sub priority, look to main.c
+  nvic_init.NVIC_IRQChannel = EXTI0_IRQn;
+  nvic_init.NVIC_IRQChannelPreemptionPriority = 12;
+  nvic_init.NVIC_IRQChannelSubPriority = 0;
+  nvic_init.NVIC_IRQChannelCmd = ENABLE;
+  NVIC_Init( &nvic_init );
+}
 
 // transceiver service thread-handler
 //==============================================================================
 static void transceiver_thread( void* params )
 {
+  static int first = 1;
   int ret;
-  BaseType_t res;
-  uint32_t led_service_id;
-  portTickType last_wake_time;
-  led_service_mesg_t led_service_mesg;
 
-  void* temp; // currently we haven't protocol for this service
+  init();
 
   // initialize n_rf24l01 library and transceiver
   ret = init_n_rf24l01();
   if( ret )
     hardware_fail();
 
-  led_service_id = get_service_id( "led_service" );
-  if( !led_service_id )
-    hardware_fail();
-
-  // prepare message to send to led_service
-  led_service_mesg.type = 1;
-  led_service_mesg.ack_on = 1;
-  led_service_mesg.service_id_to_ack = service_id;
-  led_service_mesg.duration = 1000;
-  led_service_mesg.period = 250;
-
-  last_wake_time = xTaskGetTickCount();
-
   while( 1 )
   {
-    send_mesg( led_service_id, &led_service_mesg, portMAX_DELAY );
-    led_service_mesg.mesg_id++;
-
-    res = xQueueReceive( service_queue, ( void * )&temp, portMAX_DELAY );
-    if( res != pdTRUE || !temp )
-      hardware_fail();
-
-    switch( get_msg_type( temp ) )
+    if( first )
     {
-      // acknowledge handling
-      case 0 :
-        ;	// currently there are nothing to do
-          // we can make next cast (ack_mesg_t*)temp and we will be able to use
-          // next fields: service_id and mesg_id
-      break;
-
-      default :
-        hardware_fail();	// what message we have received ?
-      break;
+      first = 0;
+      xSemaphoreTake( exti_0_semaphor, portMAX_DELAY );
     }
 
-    // thread will be awaken each five second (5000 ms) and send message to led_service to blink led
-    // xTimeIncrement (second parameter) - is interval in slices
-    // portTICK_RATE_MS - slice time in ms
-    vTaskDelayUntil( &last_wake_time, 5000 / portTICK_RATE_MS );
+    xSemaphoreTake( exti_0_semaphor, portMAX_DELAY );
   }
 }
 
@@ -87,13 +130,8 @@ int transceiver_service_create( void )
       .hndl = NULL	// we aren't interesting in this handle
       };
 
-  queue_t queue =
-  {
-      .length = 5,
-      .queue_id = &service_queue	// we will use this queue's id for reading events from queue
-      };
+  // currently transceiver service doesn't serve any requests, hw works only as receiver !!!
+  cur_serv_id = service_create( &thread, NULL );
 
-  service_id = service_create( &thread, &queue );
-
-  return service_id;
+  return cur_serv_id;
 }

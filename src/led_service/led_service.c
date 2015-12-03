@@ -2,65 +2,91 @@
 
 #include "led_service.h"
 #include "led_service_private.h"
-#include "led_service_protocol.h"
 
 #include "service_control.h"
 
-// queue that stores requests to this service
-static QueueHandle_t service_queue;
+// id of this (current) service
+static uint32_t cur_serv_id;
 
-// id of this service
-static uint32_t service_id;
+// queue that stores requests to this service
+static QueueHandle_t cur_serv_queue;
+
+typedef struct led_request_t
+{
+  unsigned int duration;
+  unsigned int period;
+} led_request_t;
+
+// send request to led service to flash a led
+//   duration - duration of all impulses, in ms
+//   period   - period of one impulse, in ms
+//   ticks_to_wait - amount of ticks, you will be sleep during which, 0 - means function returns control immediately
+//==============================================================================
+void led_flash( unsigned int duration, unsigned int period, TickType_t ticks_to_wait )
+{
+  led_request_t led_request = { 0, };
+
+  if( !cur_serv_id )
+    return;
+
+  led_request.duration = duration;
+  led_request.period = period;
+  send_mesg( cur_serv_id, &led_request, ticks_to_wait );
+}
+
+// send request to led service to flash a led (to call from irq handler)
+//   duration - duration of all impulses, in ms
+//   period   - period of one impulse, in ms
+// NOTE: this function makes forced context switching
+//==============================================================================
+void led_flash_irq( unsigned int duration, unsigned int period )
+{
+  portBASE_TYPE force_context_switch = pdFALSE; // must be explicitly reset
+  led_request_t led_request = { 0, };
+
+  if( !cur_serv_id )
+    return;
+
+  led_request.duration = duration;
+  led_request.period = period;
+
+  xQueueSendFromISR( cur_serv_queue, &led_request, &force_context_switch );
+
+  // after irq processing will be finished switch to woken high priority task immediately
+  portEND_SWITCHING_ISR( force_context_switch );
+}
+
+
+//========================================================================================================
+//========================================================================================================
+
 
 // led service thread-handler
 //==============================================================================
 static void led_thread( void* params )
 {
-  led_service_mesg_t* led_service_mesg;
   portTickType cur_tick_num, start_tick_num;
+  led_request_t cur_serv_msg = { 0, };
   BaseType_t res;
-  int ret;
 
   led_init();
 
   while( 1 )
   {
-    res = xQueueReceive( service_queue, ( void* )&led_service_mesg, portMAX_DELAY );
-    if( res != pdTRUE || !led_service_mesg )
+    res = xQueueReceive( cur_serv_queue, ( void* )&cur_serv_msg, portMAX_DELAY );
+    if( res != pdTRUE )
       hardware_fail();
 
-    switch( get_msg_type( led_service_mesg ) )
+    start_tick_num = xTaskGetTickCount();
+    cur_tick_num = start_tick_num;
+
+    // of course it's not accurate time measurement, but...
+    while( cur_tick_num < ( start_tick_num + cur_serv_msg.duration / portTICK_RATE_MS ) )
     {
-      case 0 :
-        ; // acknowledge handling
-      break;
-
-      case 1 :
-      {
-        start_tick_num = xTaskGetTickCount();
-        cur_tick_num = start_tick_num;
-
-        // of course it's not accurate time measurement, but...
-        while( cur_tick_num < ( start_tick_num + led_service_mesg->duration / portTICK_RATE_MS ) )
-        {
-          led_blink( led_service_mesg->period );
-          cur_tick_num = xTaskGetTickCount();
-        }
-      }
-      break;
-
-      default :
-        hardware_fail();	// what message we have received ?
-      break;
+      led_blink( cur_serv_msg.period );
+      cur_tick_num = xTaskGetTickCount();
     }
-
-    if( led_service_mesg->ack_on )
-    {
-      ret = send_ack_mesg( service_id, led_service_mesg->service_id_to_ack, led_service_mesg->mesg_id );
-      if( !ret )
-        hardware_fail();	// maybe it's very strictly ?
-    }
-  }
+   }
 }
 
 // this function is called before FreeRTOS scheduler starts, in main function
@@ -80,11 +106,12 @@ int led_service_create( void )
 
   queue_t queue =
   {
+      .elm_size = sizeof(led_request_t),
       .length = 5,
-      .queue_id = &service_queue // we will use this queue's id for reading events from queue
+      .queue_id = &cur_serv_queue // we will use this queue's id for reading events from queue
       };
 
-  service_id = service_create( &thread, &queue );
+  cur_serv_id = service_create( &thread, &queue );
 
-  return service_id;
+  return cur_serv_id;
 }

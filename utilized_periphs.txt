@@ -1,0 +1,12 @@
+This file describes stm32-vl-discovery (stm32f100RBT6B) utilezed peripherals
+for radio car firmware purposes.
+
+GPIOs:
+  GPIOA:
+    2..7 - transeiver (2,3 - gpios, [4-7] - spi1)
+  GPIOC:  
+    8 - "hardware panic" (blue led)
+    9 - led service (green led)
+    
+SPIs:
+  SPI1 - transceiver

@@ -59,10 +59,10 @@ void send_cmd( u_char cmd, u_char* status_reg, u_char* data, u_char num, u_char 
 //==============================================================================
 void usleep( u_int ms )
 {
-  int i;
+  /*int i;
 
   if( ms < ( 1000 / configTICK_RATE_HZ ) )
-    /*for( i = 0; i < configCPU_CLOCK_HZ; i++ )*/;
+    for( i = 0; i < configCPU_CLOCK_HZ; i++ );*/
 }
 
 static const n_rf24l01_backend_t n_rf24l01_backend =

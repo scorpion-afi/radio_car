@@ -49,7 +49,7 @@ int create_os_objects( void )
 //===================================================================================
 void init_not_os_objects( void )
 {
-  GPIO_InitTypeDef gpio_init;
+  GPIO_InitTypeDef gpio_init = { 0, };
 
   // blue led linked with PC8 pin
 
