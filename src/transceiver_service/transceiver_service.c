@@ -10,6 +10,7 @@
 // id of this service
 static uint32_t cur_serv_id;
 
+/*
 // semaphor to implement delayed interrupt service (exti0: user button)
 static xSemaphoreHandle exti_0_semaphor;
 
@@ -87,32 +88,20 @@ static void init( void )
   nvic_init.NVIC_IRQChannelSubPriority = 0;
   nvic_init.NVIC_IRQChannelCmd = ENABLE;
   NVIC_Init( &nvic_init );
-}
+}*/
 
 // transceiver service thread-handler
 //==============================================================================
 static void transceiver_thread( void* params )
 {
-  static int first = 1;
   int ret;
-
-  init();
 
   // initialize n_rf24l01 library and transceiver
   ret = init_n_rf24l01();
   if( ret )
     hardware_fail();
 
-  while( 1 )
-  {
-    if( first )
-    {
-      first = 0;
-      xSemaphoreTake( exti_0_semaphor, portMAX_DELAY );
-    }
-
-    xSemaphoreTake( exti_0_semaphor, portMAX_DELAY );
-  }
+  vTaskDelete( NULL );
 }
 
 // this function is called before FreeRTOS scheduler starts, in main function

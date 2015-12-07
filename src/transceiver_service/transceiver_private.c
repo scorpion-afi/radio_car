@@ -3,6 +3,8 @@
 
 #include "n_rf24l01/src/n_rf24l01_port.h"
 
+#include "led_service.h"
+
 // IRQ line - PA2
 // CE line  - PA3
 // SPI SCN  - PA4
@@ -30,39 +32,117 @@
 #define SPI_PINS_PORT	GPIOA
 #define SPI_PERIPH		RCC_APB2Periph_SPI1 | RCC_APB2Periph_GPIOA
 
+
+// exti line 2 irq handler
+//==============================================================================
+void EXTI2_IRQHandler( void )
+{
+  led_flash_irq( 450, 150 );
+
+  // clear the EXTI line 2 pending bit
+  EXTI_ClearITPendingBit( EXTI_Line2 );
+}
+
+/**
+ * @brief
+ *
+ * @param[in] n -
+ */
+/*static void _delay_asm( u_char n )
+{
+ //asm()
+}*/
+
+// this function sets/clears CSN (NSS/SCN) pin
+// value - value to set onto pin
+//==============================================================================
+static void _set_up_csn_pin( u_char value )
+{
+  if( value )
+    GPIO_SetBits( GPIOA, SPI_SCN_PIN ); // set '1' on SPI_SCN_PIN
+  else
+    GPIO_ResetBits( GPIOA, SPI_SCN_PIN ); // set '0' on SPI_SCN_PIN
+}
+
+// write/read byte to/from spi 1 peripheral
+//===================================================================================
+static uint8_t _send_spi_data( u_char data )
+{
+    SPI_I2S_SendData( SPI1, data );
+
+    while( SPI_I2S_GetFlagStatus( SPI1, SPI_I2S_FLAG_RXNE ) == RESET  );
+
+    return SPI_I2S_ReceiveData( SPI1 );
+}
+
 // this function sets/clears CE pin
 // value - value to set onto pin
 //==============================================================================
-void set_up_ce_pin( u_char value )
+static void set_up_ce_pin( u_char value )
 {
   if( value )
-    GPIO_SetBits( CE_PORT, CE_PIN ); // set '1' on CE_PIN
+    GPIO_SetBits( GPIOA, GPIO_Pin_3 ); // set '1' on CE_PIN
   else
-    GPIO_ResetBits( CE_PORT, CE_PIN ); // set '0' on CE_PIN
+    GPIO_ResetBits( GPIOA, GPIO_Pin_3 ); // set '0' on CE_PIN
 }
 
 // send a command to n_rf24l01
 // cmd - command to send
 // status_reg - pointer n_rf24l01 status register will be written to
 // data - pointer to data to be written to or to be read from n_rf24l01, depends on @type,
-//		 real amount of data to read from/write to is depends on @num parameter
+//       real amount of data to read from/write to is depends on @num parameter
 // num - amount of bytes to read or write (except command byte) (max amount is COMMAND_DATA_SIZE)
 // type - type of operation: 1 - write, 0 - read
 // return -1 if failed, 0 otherwise
-//==============================================================================
-void send_cmd( u_char cmd, u_char* status_reg, u_char* data, u_char num, u_char type )
+// if you want to read only n_rf24l01 status register you may pass @cmd as NOP and
+// after function execution in memory @status_reg points to will be status register
+// Note: if you pass @num as 0, you just ask to execute you command and return status register.
+//       if you want just execute command you can do this: send_command( you_cmd, NULL, NULL, 0, 0 )
+//====================================================================================
+static void send_cmd( u_char cmd, u_char* status_reg, u_char* data, u_char num, u_char type )
 {
+  int i;
 
+  // we can pass NULL as @data if we want to read only n_rf24l01 status register
+  if( num && !data ) return;
+
+  _set_up_csn_pin( 1 );
+  _set_up_csn_pin( 0 );
+
+  if( status_reg )
+      *status_reg = _send_spi_data( cmd );
+  else
+      _send_spi_data( cmd );
+
+  for( i = 0; i < num; i++ )
+  {
+      if( type ) _send_spi_data( *data++ );
+      else *data++ = _send_spi_data( 0xff );
+  }
+
+  _set_up_csn_pin( 1 );
+
+  return;
 }
 
-// this function put to sleep library execution flow, max sleep interval ~1500 ms
+/**
+ * @brief this function put to sleep library execution flow, max sleep interval ~1500 ms
+ *
+ * @param[in] mks - time in microseconds to sleep
+ */
 //==============================================================================
-void usleep( u_int ms )
+static void usleep( u_int mks )
 {
-  /*int i;
+  TickType_t delay;
 
-  if( ms < ( 1000 / configTICK_RATE_HZ ) )
-    for( i = 0; i < configCPU_CLOCK_HZ; i++ );*/
+  // TODO: dirty hack !!! (must be fixed)
+
+  // minimal delay - portTICK_RATE_MS ms
+  delay = (mks / 1000) / portTICK_RATE_MS;
+  if( !delay )
+    delay = 1;
+
+  vTaskDelay( delay );
 }
 
 static const n_rf24l01_backend_t n_rf24l01_backend =
@@ -75,67 +155,94 @@ static const n_rf24l01_backend_t n_rf24l01_backend =
 //==============================================================================
 static void init_gpio_periph( void )
 {
-  GPIO_InitTypeDef gpio_init =
-  {
-      0, };
+  GPIO_InitTypeDef gpio_init;
+  EXTI_InitTypeDef exti_init;
+  NVIC_InitTypeDef nvic_init;
 
-  // init pins: CE - line for transmit/receive control, IRQ - interrupt line
-
-  // enable IRQ_PORT clock and prepare pin to be in input pull up mode (IRQ line has low active level)
-  RCC_APB2PeriphClockCmd( IRQ_PERIPH, ENABLE );
+  // PA3 - CE (line for transmit/receive switch control)
 
   GPIO_StructInit( &gpio_init );
-  gpio_init.GPIO_Pin = IRQ_PIN;
-  gpio_init.GPIO_Mode = GPIO_Mode_IPU;
-  GPIO_Init( IRQ_PORT, &gpio_init );
 
-  // enable CE_PORT clock and prepare pin to be in output push pull mode
-  RCC_APB2PeriphClockCmd( CE_PERIPH, ENABLE );
+  // enable GPIOA peripheral clock
+  RCC_APB2PeriphClockCmd( RCC_APB2Periph_GPIOA, ENABLE );
 
-  gpio_init.GPIO_Pin = CE_PIN;
-  gpio_init.GPIO_Mode = GPIO_Mode_Out_PP;
+  // configure pin in output push/pull mode
+  gpio_init.GPIO_Pin = GPIO_Pin_3;
   gpio_init.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_Init( CE_PORT, &gpio_init );
+  gpio_init.GPIO_Mode = GPIO_Mode_Out_PP;
+  GPIO_Init( GPIOA, &gpio_init );
 
-  // set '1' on CE_PIN
-  GPIO_SetBits( CE_PORT, CE_PIN );
+  // PA2 - IRQ (interrupt line)
+
+  GPIO_StructInit( &gpio_init );
+  EXTI_StructInit( &exti_init );
+
+  // enable GPIOA clock and prepare pin to be in input floating mode
+  RCC_APB2PeriphClockCmd( RCC_APB2Periph_GPIOA, ENABLE );
+
+  gpio_init.GPIO_Pin = GPIO_Pin_2;
+  gpio_init.GPIO_Mode = GPIO_Mode_IN_FLOATING;
+  GPIO_Init( GPIOA, &gpio_init );
+
+  // enable AFIO clock
+  RCC_APB2PeriphClockCmd( RCC_APB2Periph_AFIO, ENABLE );
+
+  // connect PA2 to EXTI line 2
+  GPIO_EXTILineConfig( GPIO_PortSourceGPIOA, GPIO_PinSource2 );
+
+  // configure EXTI line 2
+  exti_init.EXTI_Line = EXTI_Line2;
+  exti_init.EXTI_Mode = EXTI_Mode_Interrupt;
+  exti_init.EXTI_Trigger = EXTI_Trigger_Falling; // (IRQ line has low active level)
+  exti_init.EXTI_LineCmd = ENABLE;
+  EXTI_Init( &exti_init );
+
+  // enable EXTI line 2 interrupt
+  // preemption priority: 12 or 0xcf > configMAX_SYSCALL_INTERRUPT_PRIORITY,
+  // so we can use FreeRTOS API inside interrupt handler
+  // sub priority: we don't use sub priority, look to main.c
+  nvic_init.NVIC_IRQChannel = EXTI2_IRQn;
+  nvic_init.NVIC_IRQChannelPreemptionPriority = 12;
+  nvic_init.NVIC_IRQChannelSubPriority = 0;
+  nvic_init.NVIC_IRQChannelCmd = ENABLE;
+  NVIC_Init( &nvic_init );
 }
 
 //
 //==============================================================================
 static void init_spi_periph( void )
 {
-  GPIO_InitTypeDef gpio_init =
-  {
-      0, };
-  SPI_InitTypeDef spi_init =
-  {
-      0, };
+  GPIO_InitTypeDef gpio_init;
+  SPI_InitTypeDef  spi_init;
 
-  // init spi to communicate with n_rf24l01 transceiver
+  // initialize spi to communicate with n_rf24l01 transceiver
 
-  RCC_APB2PeriphClockCmd( SPI_PERIPH | SPI_SCN_PERIPH, ENABLE );
+  GPIO_StructInit( &gpio_init );
+  SPI_StructInit( &spi_init );
+
+  // enable SPI1 and GPIOA clock
+  RCC_APB2PeriphClockCmd( RCC_APB2Periph_SPI1 | RCC_APB2Periph_GPIOA, ENABLE );
 
   // we must controls SCN pin by software due to n_rf24l01 command must have
   // one level on SCN(NSS) pin during all command transaction, command can consist of
   // several spi transactions, between each we cann't change SCN(NSS).
-  gpio_init.GPIO_Pin = SPI_SCN_PIN;
+  gpio_init.GPIO_Pin = GPIO_Pin_4;
   gpio_init.GPIO_Mode = GPIO_Mode_Out_PP;
   gpio_init.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_Init( SPI_SCN_PORT, &gpio_init );
+  GPIO_Init( GPIOA, &gpio_init );
 
-  // move spi's pins in alternative work mode
-  gpio_init.GPIO_Pin = SPI_SCK_PIN | SPI_MOSI_PIN;
+  // configure spi's pins (SPI_SCK and SPI_MOSI) in alternative work mode
+  gpio_init.GPIO_Pin = GPIO_Pin_5 | GPIO_Pin_7;
   gpio_init.GPIO_Mode = GPIO_Mode_AF_PP;
   gpio_init.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_Init( SPI_PINS_PORT, &gpio_init );
+  GPIO_Init( GPIOA, &gpio_init );
 
-  gpio_init.GPIO_Pin = SPI_MISO_PIN;
+  // configure spi's pin (SPI_MISO) in input floating mode
+  gpio_init.GPIO_Pin =  GPIO_Pin_6;
   gpio_init.GPIO_Mode = GPIO_Mode_IN_FLOATING;
   gpio_init.GPIO_Speed = GPIO_Speed_50MHz;
-  GPIO_Init( SPI_PINS_PORT, &gpio_init );
+  GPIO_Init( GPIOA, &gpio_init );
 
-  SPI_StructInit( &spi_init );
   spi_init.SPI_Direction = SPI_Direction_2Lines_FullDuplex;
   spi_init.SPI_Mode = SPI_Mode_Master;
   spi_init.SPI_DataSize = SPI_DataSize_8b;
@@ -145,12 +252,11 @@ static void init_spi_periph( void )
   spi_init.SPI_BaudRatePrescaler = SPI_BaudRatePrescaler_256;
   spi_init.SPI_FirstBit = SPI_FirstBit_MSB;
 
-  SPI_Init( SPI_MODULE, &spi_init );
-  SPI_Cmd( SPI_MODULE, ENABLE );
-
   // set NSS pin to 1
-  SPI_NSSInternalSoftwareConfig( SPI_MODULE, SPI_NSSInternalSoft_Set );
-  GPIO_SetBits( SPI_SCN_PORT, SPI_SCN_PIN );
+  SPI_NSSInternalSoftwareConfig( SPI1, SPI_NSSInternalSoft_Set );
+
+  SPI_Init( SPI1, &spi_init );
+  SPI_Cmd( SPI1, ENABLE );
 }
 
 // make first init steps to properly n_rf24l01 work
@@ -163,9 +269,34 @@ int init_n_rf24l01( void )
   init_gpio_periph();
   init_spi_periph();
 
+  // set '1' on CE_PIN
+  set_up_ce_pin( 1 );
+
+  // set NSS pin to 1
+  _set_up_csn_pin( 1 );
+
   ret = n_rf24l01_init( &n_rf24l01_backend );
   if( ret )
     return -1;
+
+  prepare_to_transmit();
+
+  n_rf24l01_transmit_byte( 'L' );
+  n_rf24l01_transmit_byte( 'e' );
+  n_rf24l01_transmit_byte( 'n' );
+  n_rf24l01_transmit_byte( 'a' );
+  n_rf24l01_transmit_byte( ' ' );
+  n_rf24l01_transmit_byte( 'I' );
+  n_rf24l01_transmit_byte( ' ' );
+  n_rf24l01_transmit_byte( 'l' );
+  n_rf24l01_transmit_byte( 'i' );
+  n_rf24l01_transmit_byte( 'k' );
+  n_rf24l01_transmit_byte( 'e' );
+  n_rf24l01_transmit_byte( ' ' );
+  n_rf24l01_transmit_byte( 'y' );
+  n_rf24l01_transmit_byte( 'o' );
+  n_rf24l01_transmit_byte( 'u' );
+  n_rf24l01_transmit_byte( '!' );
 
   return 0;
 }
