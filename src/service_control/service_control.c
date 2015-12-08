@@ -13,7 +13,9 @@ typedef struct service_element_t
 const char* services_names[] =
 {
     "led_service",
-    "transceiver_service" };
+    "transceiver_service",
+    "uart_service"
+};
 
 // list of all services (list of struct service_element_t)
 static struct list_head services_list;

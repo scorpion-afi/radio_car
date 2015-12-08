@@ -32,12 +32,20 @@
 #define SPI_PINS_PORT	GPIOA
 #define SPI_PERIPH		RCC_APB2Periph_SPI1 | RCC_APB2Periph_GPIOA
 
+extern void read_payload( void );
+
+// semaphore to implement delayed interrupt service (exti2: n_rf24l01 irq line)
+static xSemaphoreHandle exti_2_semaphore;
 
 // exti line 2 irq handler
 //==============================================================================
 void EXTI2_IRQHandler( void )
 {
-  led_flash_irq( 450, 150 );
+  portBASE_TYPE force_context_switch = pdFALSE; // must be explicitly reset
+
+  // wake up state machine and switch context to woken task, if it possible
+  xSemaphoreGiveFromISR( exti_2_semaphore, &force_context_switch );
+  portEND_SWITCHING_ISR( force_context_switch );
 
   // clear the EXTI line 2 pending bit
   EXTI_ClearITPendingBit( EXTI_Line2 );
@@ -151,13 +159,48 @@ static const n_rf24l01_backend_t n_rf24l01_backend =
     .send_cmd = send_cmd,
     .usleep = usleep };
 
+static void enable_irq_handling( void )
+{
+  NVIC_InitTypeDef nvic_init;
+
+  // enable EXTI line 2 interrupt
+  // preemption priority: 12 or 0xcf > configMAX_SYSCALL_INTERRUPT_PRIORITY,
+  // so we can use FreeRTOS API inside interrupt handler
+  // sub priority: we don't use sub priority, look to main.c
+  nvic_init.NVIC_IRQChannel = EXTI2_IRQn;
+  nvic_init.NVIC_IRQChannelPreemptionPriority = 12;
+  nvic_init.NVIC_IRQChannelSubPriority = 0;
+  nvic_init.NVIC_IRQChannelCmd = ENABLE;
+  NVIC_Init( &nvic_init );
+}
+
+//==============================================================================
+void state_machine( void )
+{
+  static int first = 1;
+
+  if( first )
+  {
+    first = 0;
+    xSemaphoreTake( exti_2_semaphore, portMAX_DELAY );
+
+    enable_irq_handling();
+  }
+
+  while( 1 )
+  {
+      xSemaphoreTake( exti_2_semaphore, portMAX_DELAY );
+      read_payload();
+  }
+
+}
+
 //
 //==============================================================================
 static void init_gpio_periph( void )
 {
   GPIO_InitTypeDef gpio_init;
   EXTI_InitTypeDef exti_init;
-  NVIC_InitTypeDef nvic_init;
 
   // PA3 - CE (line for transmit/receive switch control)
 
@@ -196,16 +239,6 @@ static void init_gpio_periph( void )
   exti_init.EXTI_Trigger = EXTI_Trigger_Falling; // (IRQ line has low active level)
   exti_init.EXTI_LineCmd = ENABLE;
   EXTI_Init( &exti_init );
-
-  // enable EXTI line 2 interrupt
-  // preemption priority: 12 or 0xcf > configMAX_SYSCALL_INTERRUPT_PRIORITY,
-  // so we can use FreeRTOS API inside interrupt handler
-  // sub priority: we don't use sub priority, look to main.c
-  nvic_init.NVIC_IRQChannel = EXTI2_IRQn;
-  nvic_init.NVIC_IRQChannelPreemptionPriority = 12;
-  nvic_init.NVIC_IRQChannelSubPriority = 0;
-  nvic_init.NVIC_IRQChannelCmd = ENABLE;
-  NVIC_Init( &nvic_init );
 }
 
 //
@@ -279,24 +312,12 @@ int init_n_rf24l01( void )
   if( ret )
     return -1;
 
-  prepare_to_transmit();
+  prepare_to_receive();
 
-  n_rf24l01_transmit_byte( 'L' );
-  n_rf24l01_transmit_byte( 'e' );
-  n_rf24l01_transmit_byte( 'n' );
-  n_rf24l01_transmit_byte( 'a' );
-  n_rf24l01_transmit_byte( ' ' );
-  n_rf24l01_transmit_byte( 'I' );
-  n_rf24l01_transmit_byte( ' ' );
-  n_rf24l01_transmit_byte( 'l' );
-  n_rf24l01_transmit_byte( 'i' );
-  n_rf24l01_transmit_byte( 'k' );
-  n_rf24l01_transmit_byte( 'e' );
-  n_rf24l01_transmit_byte( ' ' );
-  n_rf24l01_transmit_byte( 'y' );
-  n_rf24l01_transmit_byte( 'o' );
-  n_rf24l01_transmit_byte( 'u' );
-  n_rf24l01_transmit_byte( '!' );
+  // create semaphore to implement delayed interrupt service
+  vSemaphoreCreateBinary( exti_2_semaphore );
+  if( !exti_2_semaphore )
+    return -1;
 
   return 0;
 }

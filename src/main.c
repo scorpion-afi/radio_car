@@ -42,6 +42,10 @@ int create_os_objects( void )
   if( !ret )
     return 0;
 
+  ret = uart_service_create();
+  if( !ret )
+    return 0;
+
   return 1;
 }
 

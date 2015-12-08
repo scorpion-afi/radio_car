@@ -1,6 +1,6 @@
 /*
     FreeRTOS V7.1.1 - Copyright (C) 2012 Real Time Engineers Ltd.
-	
+
 
     ***************************************************************************
      *                                                                       *
@@ -40,7 +40,7 @@
     FreeRTOS WEB site.
 
     1 tab == 4 spaces!
-    
+
     ***************************************************************************
      *                                                                       *
      *    Having a problem?  Start by reading the FAQ "My application does   *
@@ -50,17 +50,17 @@
      *                                                                       *
     ***************************************************************************
 
-    
-    http://www.FreeRTOS.org - Documentation, training, latest information, 
+
+    http://www.FreeRTOS.org - Documentation, training, latest information,
     license and contact details.
-    
+
     http://www.FreeRTOS.org/plus - A selection of FreeRTOS ecosystem products,
     including FreeRTOS+Trace - an indispensable productivity tool.
 
-    Real Time Engineers ltd license FreeRTOS to High Integrity Systems, who sell 
-    the code with commercial support, indemnification, and middleware, under 
+    Real Time Engineers ltd license FreeRTOS to High Integrity Systems, who sell
+    the code with commercial support, indemnification, and middleware, under
     the OpenRTOS brand: http://www.OpenRTOS.com.  High Integrity Systems also
-    provide a safety engineered and independently SIL3 certified version under 
+    provide a safety engineered and independently SIL3 certified version under
     the SafeRTOS brand: http://www.SafeRTOS.com.
 */
 
@@ -78,7 +78,7 @@
  * application requirements.
  *
  * THESE PARAMETERS ARE DESCRIBED WITHIN THE 'CONFIGURATION' SECTION OF THE
- * FreeRTOS API DOCUMENTATION AVAILABLE ON THE FreeRTOS.org WEB SITE. 
+ * FreeRTOS API DOCUMENTATION AVAILABLE ON THE FreeRTOS.org WEB SITE.
  *
  * See http://www.freertos.org/a00110.html.
  *----------------------------------------------------------*/
@@ -87,7 +87,7 @@
 #define configUSE_PORT_OPTIMISED_TASK_SELECTION 1
 #define configUSE_IDLE_HOOK			0
 #define configUSE_TICK_HOOK			0
-#define configCPU_CLOCK_HZ			( ( unsigned long ) 24000000 )	
+#define configCPU_CLOCK_HZ			( ( unsigned long ) 24000000 )
 #define configTICK_RATE_HZ			( ( portTickType ) 100 ) // time slice for task/thread is about 10 ms
 #define configMAX_PRIORITIES		( 6 )
 #define configMINIMAL_STACK_SIZE	( ( unsigned short ) 128 )
@@ -116,7 +116,7 @@ to exclude the API function. */
 #define INCLUDE_vTaskCleanUpResources	0
 #define INCLUDE_vTaskSuspend			1
 #define INCLUDE_vTaskDelayUntil			1
-#define INCLUDE_vTaskDelay				0
+#define INCLUDE_vTaskDelay				1
 
 /* This is the raw value as per the Cortex-M3 NVIC.  Values can be 255
 (lowest) to 0 (1?) (highest). */
