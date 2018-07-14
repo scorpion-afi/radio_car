@@ -1,0 +1,6 @@
+[submodule "libopencm3"]
+	path = libopencm3
+	url = https://github.com/libopencm3/libopencm3
+[submodule "n_rf24l01_library"]
+	path = n_rf24l01_library
+	url = https://github.com/sergs-1991/n_rf24l01_library.git
